@@ -37,7 +37,9 @@ func streamsHandler(rawURL string) (core.Producer, error) {
 
 		switch scheme {
 		case "ws", "wss":
-			if format == "kinesis" {
+			if format == "reachy" {
+				return reachyClient(rawURL, query)
+			} else if format == "kinesis" {
 				// https://aws.amazon.com/kinesis/video-streams/
 				// https://docs.aws.amazon.com/kinesisvideostreams-webrtc-dg/latest/devguide/what-is-kvswebrtc.html
 				// https://github.com/orgs/awslabs/repositories?q=kinesis+webrtc
