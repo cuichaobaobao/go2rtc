@@ -1,6 +1,6 @@
 # Reachy Mini adapter — experimental release candidate
 
-Image version: 0.1.0-rc.1. Branch: reachy-mini.
+Image version: 0.1.0-rc.2. Branch: reachy-mini.
 No physical robot, Home Assistant or Frigate deployment has been tested.
 
 ## Source configuration (example only)
@@ -47,7 +47,7 @@ The cloud test does not contact any private LAN device.
 
 docker/reachy.Dockerfile builds a forwarding-only non-root image without
 Python or FFmpeg. CI builds it and runs -version with no network.
-The release workflow publishes ghcr.io/cuichaobaobao/reachy-go2rtc:0.1.0-rc.1
+The release workflow publishes ghcr.io/cuichaobaobao/reachy-go2rtc:0.1.0-rc.2
 for linux/amd64 and linux/arm64 after checks pass. Release tags must not be
 overwritten; increment docker/REACHY_VERSION for the next publication.
 Only amd64 gets a runtime smoke test; arm64 is cross-compiled.
@@ -57,3 +57,6 @@ the workflow publish input. No latest tag is published. Snapshot/transcoding fea
 are intentionally unavailable in this image. No host deployment is performed.
 
 Scope: this GitHub repository only; no HA dependencies or robot software changes.
+
+RC2: match SDP codec MIME names case-insensitively. The real robot advertises
+uppercase OPUS; the regression test includes audio first and H264 profile 42c01f.

@@ -337,7 +337,7 @@ func (p *reachyProducer) answer(offer pion.SessionDescription, timeout time.Dura
 			var selected *pion.RTPCodecParameters
 			for i := range codecs {
 				codec := &codecs[i]
-				if codec.MimeType == pion.MimeTypeH264 || codec.MimeType == pion.MimeTypeOpus {
+				if strings.EqualFold(codec.MimeType, pion.MimeTypeH264) || strings.EqualFold(codec.MimeType, pion.MimeTypeOpus) {
 					if selected == nil {
 						selected = codec
 					}

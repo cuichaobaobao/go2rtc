@@ -39,6 +39,9 @@ jobs:
         run: docker run --rm --network none --read-only reachy-go2rtc:ci -version
 
   publish:
+    concurrency:
+      group: reachy-image-publication
+      cancel-in-progress: false
     needs: test
     if: contains(github.event.head_commit.message, '[publish-reachy]') || inputs.publish == true
     runs-on: ubuntu-latest

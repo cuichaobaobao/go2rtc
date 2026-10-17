@@ -111,9 +111,18 @@ func testReachyRTP(t *testing.T, rsaCert, remoteClose bool, playback ...bool) {
 		t.Fatal(err)
 	}
 	defer pc.Close()
+	robotOffer := len(playback) > 1 && playback[1]
+	profile := "42e01f"
+	if robotOffer {
+		profile = "42c01f"
+		_, err = pc.AddTransceiverFromKind(pion.RTPCodecTypeAudio, pion.RTPTransceiverInit{Direction: pion.RTPTransceiverDirectionSendrecv})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	track, err := pion.NewTrackLocalStaticRTP(pion.RTPCodecCapability{
 		MimeType: pion.MimeTypeH264, ClockRate: 90000,
-		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=" + profile,
 	}, "video", "reachy")
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +174,11 @@ func testReachyRTP(t *testing.T, rsaCert, remoteClose bool, playback ...bool) {
 			return
 		}
 		_ = ws.WriteJSON(reachyMessage{Type: "sessionStarted", SessionID: "session"})
-		_ = ws.WriteJSON(reachyMessage{Type: "peer", SessionID: "session", SDP: pc.LocalDescription()})
+		desc := *pc.LocalDescription()
+		if robotOffer {
+			desc.SDP = strings.ReplaceAll(desc.SDP, "opus/48000", "OPUS/48000")
+		}
+		_ = ws.WriteJSON(reachyMessage{Type: "peer", SessionID: "session", SDP: &desc})
 		serverWS <- ws
 		for {
 			msg = reachyMessage{}
@@ -195,14 +208,20 @@ func testReachyRTP(t *testing.T, rsaCert, remoteClose bool, playback ...bool) {
 		t.Fatal(err)
 	}
 	defer p.Stop()
-	if len(playback) > 0 {
+	if len(playback) > 0 && playback[0] {
 		testReachyPlayback(t, p, track)
 		return
 	}
-	if len(p.GetMedias()) != 1 {
+	if (!robotOffer && len(p.GetMedias()) != 1) || (robotOffer && len(p.GetMedias()) != 2) {
 		t.Fatalf("medias: %d", len(p.GetMedias()))
 	}
 	media := p.GetMedias()[0]
+	if robotOffer {
+		media = p.GetMedias()[1]
+		if media.Kind != core.KindVideo {
+			t.Fatal("robot video negotiation missing")
+		}
+	}
 	receiver, err := p.GetTrack(media, media.Codecs[0])
 	if err != nil {
 		t.Fatal(err)
@@ -261,4 +280,8 @@ func TestReachyCandidateMessage(t *testing.T) {
 	if msg.ICE == nil || msg.ICE.SDPMLineIndex == nil || *msg.ICE.SDPMLineIndex != 1 {
 		t.Fatal("lost m-line index")
 	}
+}
+
+func TestReachyRobotUppercaseOpus(t *testing.T) {
+	testReachyRTP(t, false, false, false, true)
 }
