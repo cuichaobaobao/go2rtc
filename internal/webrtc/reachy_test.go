@@ -89,7 +89,7 @@ func TestReachyRTPAndCleanup(t *testing.T) {
 		}
 	}
 }
-func testReachyRTP(t *testing.T, rsaCert, remoteClose bool) {
+func testReachyRTP(t *testing.T, rsaCert, remoteClose bool, playback ...bool) {
 	api, err := reachyAPI()
 	if err != nil {
 		t.Fatal(err)
@@ -195,6 +195,10 @@ func testReachyRTP(t *testing.T, rsaCert, remoteClose bool) {
 		t.Fatal(err)
 	}
 	defer p.Stop()
+	if len(playback) > 0 {
+		testReachyPlayback(t, p, track)
+		return
+	}
 	if len(p.GetMedias()) != 1 {
 		t.Fatalf("medias: %d", len(p.GetMedias()))
 	}
