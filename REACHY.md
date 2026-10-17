@@ -1,6 +1,6 @@
-# Reachy Mini adapter — experimental, not released
+# Reachy Mini adapter — experimental release candidate
 
-Development revision: reachy-0.1.0-dev. Branch: reachy-mini.
+Image version: 0.1.0-rc.1. Branch: reachy-mini.
 No physical robot, Home Assistant or Frigate deployment has been tested.
 
 ## Source configuration (example only)
@@ -20,8 +20,8 @@ There is no audio playback, recording, or robot control in the adapter.
 
 Connection establishment is bounded; the signalling socket stays alive until
 the producer stops. WebSocket pings detect dead signalling peers. go2rtc owns
-on-demand source start/stop. Actual GStreamer compatibility and complete
-RTSP/browser playback still require tests.
+on-demand source start/stop. Actual robot GStreamer compatibility, browser playback and Frigate integration
+still require tests.
 
 ## Cloud checks
 
@@ -33,15 +33,27 @@ A simulated GStreamer signalling server and real Pion peers exercise:
 - repeated execution under the Go race detector;
 - existing upstream WebRTC tests and whole-project compilation.
 
-Synthetic H264 payload equality verifies compressed transport, not decoded picture
-quality, sustained memory use, audio playback, or Frigate integration.
+Additional cloud media tests forward a valid 1280x720 H264 fixture through WebRTC
+and the go2rtc RTSP server to two independent FFmpeg decoders for three minutes.
+All 1800 frames per viewer match the source decoded pixel hash. The fixture is a
+repeated static frame, not real robot footage. Resource samples cover the Go test
+process (including simulated sender), not a deployed container or decoder processes.
+Thirty session cycles check return of file descriptors and goroutines to baseline
+without forced GC. This is a short stress check, not a long-term leak guarantee.
+Audio playback and Frigate integration remain untested.
 The cloud test does not contact any private LAN device.
 
 ## Container
 
 docker/reachy.Dockerfile builds a forwarding-only non-root image without
 Python or FFmpeg. CI builds it and runs -version with no network.
-No image is pushed or released. Snapshot/transcoding features requiring FFmpeg
+The release workflow publishes ghcr.io/cuichaobaobao/reachy-go2rtc:0.1.0-rc.1
+for linux/amd64 and linux/arm64 after checks pass. Release tags must not be
+overwritten; increment docker/REACHY_VERSION for the next publication.
+Only amd64 gets a runtime smoke test; arm64 is cross-compiled.
+A new GHCR package may require its owner to enable public visibility for anonymous
+downloads. Publication is explicit via [publish-reachy] in a commit message or
+the workflow publish input. No latest tag is published. Snapshot/transcoding features requiring FFmpeg
 are intentionally unavailable in this image. No host deployment is performed.
 
 Scope: this GitHub repository only; no HA dependencies or robot software changes.
