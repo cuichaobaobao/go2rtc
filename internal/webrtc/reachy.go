@@ -250,6 +250,21 @@ func (p *reachyProducer) answer(offer pion.SessionDescription, timeout time.Dura
 	if err := p.pc.SetRemoteDescription(offer); err != nil { return err }
 	// Answer receive-only even if the producer offers two-way audio.
 	for _, tr := range p.pc.GetTransceivers() {
+		// Expose a single negotiated codec so downstream readers cannot select
+		// a different payload type from the producer.
+		if receiver := tr.Receiver(); receiver != nil {
+			codecs := receiver.GetParameters().Codecs
+			var selected *pion.RTPCodecParameters
+			for i := range codecs {
+				codec := &codecs[i]
+				if codec.MimeType == pion.MimeTypeH264 || codec.MimeType == pion.MimeTypeOpus {
+					if selected == nil { selected = codec }
+					if strings.Contains(codec.SDPFmtpLine, "profile-level-id=42e01f") { selected = codec; break }
+				}
+			}
+			if selected == nil { return errors.New("reachy: expected H264 video or Opus audio") }
+			if err := tr.SetCodecPreferences([]pion.RTPCodecParameters{*selected}); err != nil { return err }
+		}
 		if tr.Sender() != nil {
 			if err := tr.SetSender(tr.Sender(), nil); err != nil { return err }
 		}
