@@ -2,6 +2,8 @@ package webrtc
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -54,9 +56,27 @@ func TestReachySilentServerTimeout(t *testing.T) {
 // A real Pion sender behind a simulated GStreamer signalling server.
 // The RTP payload is intentionally synthetic: this tests transport, not decoding.
 func TestReachyRTPAndCleanup(t *testing.T) {
+	for _, rsaCert := range []bool{false,true} {
+		for _, remoteClose := range []bool{false,true} {
+			name := "ecdsa"
+			if rsaCert { name="rsa" }
+			if remoteClose { name+="/remote-close" } else { name+="/local-stop" }
+			t.Run(name,func(t *testing.T){ testReachyRTP(t,rsaCert,remoteClose) })
+		}
+	}
+}
+func testReachyRTP(t *testing.T, rsaCert, remoteClose bool) {
 	api, err := reachyAPI()
 	if err != nil { t.Fatal(err) }
-	pc, err := api.NewPeerConnection(pion.Configuration{})
+	config := pion.Configuration{}
+	if rsaCert {
+		key, e := rsa.GenerateKey(rand.Reader,2048)
+		if e!=nil {t.Fatal(e)}
+		cert,e := pion.GenerateCertificate(key)
+		if e!=nil {t.Fatal(e)}
+		config.Certificates=[]pion.Certificate{*cert}
+	}
+	pc, err := api.NewPeerConnection(config)
 	if err != nil { t.Fatal(err) }
 	defer pc.Close()
 	track, err := pion.NewTrackLocalStaticRTP(pion.RTPCodecCapability{
@@ -66,15 +86,18 @@ func TestReachyRTPAndCleanup(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	_, err = pc.AddTransceiverFromTrack(track,pion.RTPTransceiverInit{Direction:pion.RTPTransceiverDirectionSendonly})
 	if err != nil { t.Fatal(err) }
-	// Mirrors the robot's data channel, but the client does not require it.
-	_, err = pc.CreateDataChannel("control",nil)
-	if err != nil { t.Fatal(err) }
+	// Exercise both data-channel and media-only producers.
+	if !rsaCert {
+		_, err = pc.CreateDataChannel("control",nil)
+		if err != nil { t.Fatal(err) }
+	}
 	offer, err := pc.CreateOffer(nil)
 	if err != nil { t.Fatal(err) }
 	gathered := pion.GatheringCompletePromise(pc)
 	if err = pc.SetLocalDescription(offer); err != nil { t.Fatal(err) }
 	select { case <-gathered: case <-time.After(5*time.Second): t.Fatal("gather timeout") }
 	ended := make(chan struct{})
+	serverWS := make(chan *websocket.Conn,1)
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request) {
 		defer close(ended)
 		ws, e := (&websocket.Upgrader{}).Upgrade(w,r,nil)
@@ -89,6 +112,7 @@ func TestReachyRTPAndCleanup(t *testing.T) {
 		if ws.ReadJSON(&msg)!=nil || msg.Type!="startSession" || msg.PeerID!="robot" { t.Error("expected session request"); return }
 		_ = ws.WriteJSON(reachyMessage{Type:"sessionStarted",SessionID:"session"})
 		_ = ws.WriteJSON(reachyMessage{Type:"peer",SessionID:"session",SDP:pc.LocalDescription()})
+		serverWS<-ws
 		for {
 			msg = reachyMessage{}
 			if ws.ReadJSON(&msg)!=nil { return }
@@ -123,7 +147,10 @@ func TestReachyRTPAndCleanup(t *testing.T) {
 		select {
 		case got:=<-received:
 			if !bytes.Equal(got,payload) { t.Fatal("compressed payload changed") }
-			_ = p.Stop()
+			if remoteClose {
+				ws:=<-serverWS
+				_ = ws.WriteJSON(reachyMessage{Type:"endSession",SessionID:"session"})
+			} else { _ = p.Stop() }
 			select {case <-ended:case <-time.After(time.Second):t.Fatal("signalling socket leaked")}
 			select {case <-startEnded:case <-time.After(time.Second):t.Fatal("Start leaked")}
 			return

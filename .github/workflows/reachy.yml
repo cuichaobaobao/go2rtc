@@ -18,6 +18,13 @@ jobs:
         run: |
           gofmt -w internal/webrtc/reachy.go internal/webrtc/reachy_test.go
           go build ./...
+      - name: Export formatted source for review
+        run: |
+          python3 - <<'PY'
+          import json
+          for path in ["internal/webrtc/reachy.go", "internal/webrtc/reachy_test.go"]:
+              print("FORMATTED_SOURCE " + json.dumps({"path":path,"content":open(path).read()}))
+          PY
       - name: Reachy transport and lifecycle tests
         run: go test -race -v -count=3 -timeout=120s ./internal/webrtc -run TestReachy
       - name: Existing WebRTC tests
