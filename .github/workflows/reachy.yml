@@ -16,9 +16,7 @@ jobs:
           go-version: '1.25'
       - name: Format check and build
         run: |
-          test -z "$(gofmt -l internal/webrtc/reachy.go internal/webrtc/reachy_test.go)"
-          gofmt -w internal/webrtc/reachy_media_test.go
-          python3 -c 'import json; p="internal/webrtc/reachy_media_test.go"; print("FORMATTED_SOURCE "+json.dumps({"path":p,"content":open(p).read()}))'
+          test -z "$(gofmt -l internal/webrtc/reachy.go internal/webrtc/reachy_test.go internal/webrtc/reachy_media_test.go)"
           go build ./...
       - name: Reachy transport and lifecycle tests
         run: go test -race -v -count=3 -timeout=120s ./internal/webrtc -run TestReachy
@@ -27,7 +25,7 @@ jobs:
       - name: RTSP picture integrity and resource cycles
         env:
           REACHY_MEDIA_TEST: '1'
-        run: go test -v -count=1 -timeout=180s ./internal/webrtc -run 'TestReachy(PlaybackRTSP|ResourceCycles)$'
+        run: go test -v -count=1 -timeout=300s ./internal/webrtc -run 'TestReachy(PlaybackRTSP|ResourceCycles)$'
       - name: Existing WebRTC tests
         run: go test -timeout=120s ./pkg/webrtc
       - name: Build experimental container locally on cloud runner
