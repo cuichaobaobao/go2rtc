@@ -16,16 +16,13 @@ jobs:
           go-version: '1.25'
       - name: Format check and build
         run: |
-          gofmt -w internal/webrtc/reachy.go internal/webrtc/reachy_test.go
+          test -z "$(gofmt -l internal/webrtc/reachy.go internal/webrtc/reachy_test.go)"
           go build ./...
-      - name: Export formatted source for review
-        run: |
-          python3 - <<'PY'
-          import json
-          for path in ["internal/webrtc/reachy.go", "internal/webrtc/reachy_test.go"]:
-              print("FORMATTED_SOURCE " + json.dumps({"path":path,"content":open(path).read()}))
-          PY
       - name: Reachy transport and lifecycle tests
         run: go test -race -v -count=3 -timeout=120s ./internal/webrtc -run TestReachy
       - name: Existing WebRTC tests
         run: go test -timeout=120s ./pkg/webrtc
+      - name: Build experimental container locally on cloud runner
+        run: docker build -f docker/reachy.Dockerfile -t reachy-go2rtc:ci .
+      - name: Container smoke test (no network)
+        run: docker run --rm --network none --read-only reachy-go2rtc:ci -version
